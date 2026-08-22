@@ -1,0 +1,18 @@
+# Gowin
+impl/
+*.gprj.user
+tb
+参考文件
+tmp
+
+# Icarus Verilog
+*.vcd
+sim
+*.out
+*.pdf
+
+# VSCode
+.vscode/
+
+# Windows
+Thumbs.db

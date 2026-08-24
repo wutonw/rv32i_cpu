@@ -10,6 +10,8 @@
         <File path="src/decoder.v" type="file.verilog" enable="1"/>
         <File path="src/define.v" type="file.verilog" enable="1"/>
         <File path="src/imm_gen.v" type="file.verilog" enable="1"/>
+        <File path="src/pc_reg.v" type="file.verilog" enable="1"/>
+        <File path="src/ram.v" type="file.verilog" enable="1"/>
         <File path="src/regfile.v" type="file.verilog" enable="1"/>
         <File path="src/top.v" type="file.verilog" enable="1"/>
     </FileList>

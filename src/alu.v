@@ -1,3 +1,4 @@
+`include "define.vh"
 module alu(
     input wire [3:0] alu_op,
     input wire [31:0] op1,
@@ -7,6 +8,7 @@ module alu(
 );
 
     always @(*)begin
+        
         case(alu_op)
             `ALU_ADD: alu_result = op1 + op2;
             `ALU_SUB: alu_result = op1 - op2;

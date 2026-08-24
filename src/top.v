@@ -1,3 +1,4 @@
+`include "define.vh"
 module top(
     input wire clk,
     input wire raw_rst_n,
@@ -108,11 +109,11 @@ module top(
 
     //lsu选择+load_stall
     reg [31:0] ram_r_data;
-    reg [15:0] shift_data;
+    wire [31:0] shift_data = raw_ram_r_data >> {alu_result[1:0], 3'b000};
     wire ram_req = (wb_sel == 2'b01);
     always @(*)begin
+        ram_r_data = raw_ram_r_data;
         if(inst[6:0] == `OP_LOAD)begin
-            shift_data = raw_ram_r_data >> (alu_result[1:0]*8);
             case(ram_size)
                 2'b00:begin
                     if(ext_u)begin

@@ -1,3 +1,4 @@
+`include "define.vh"
 module decoder(
     input wire [31:0] inst,
     output reg wr_en,
@@ -22,6 +23,7 @@ module decoder(
     assign rd_addr = inst[11:7];
 
     always @(*)begin
+        alu_op=`ALU_ADD; 
         wr_en=0;
         alu_src=0;
         ext_u=0;

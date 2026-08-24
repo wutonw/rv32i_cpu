@@ -1,3 +1,4 @@
+`include "define.vh"
 module imm_gen(
     input wire [31:0] inst,
     output reg [31:0] imm

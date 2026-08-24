@@ -8,7 +8,16 @@ module ram(
     output reg [31:0] ram_w_data,
     output reg [31:0] ram_r_data
 );
+
     reg [31:0] ram [0:1023];//4KB
+
+    integer i;
+    initial begin
+        for (i = 0; i < 1024; i = i + 1)begin
+            ram[i] = 32'b0;
+        end
+    end
+
     always @(posedge clk)begin
 
         ram_r_data <= ram[addr[11:2]];

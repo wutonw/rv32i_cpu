@@ -7,13 +7,17 @@ module top(
 );
     wire rst_n;
     wire wr_en;
+    wire alu_src;
     wire [31:0] wr_data;
     wire [3:0] alu_op;
-    wire [31:0] rs1_addr;
-    wire [31:0] rs2_addr;
-    wire [31:0] rd_addr;
+    wire [4:0] rs1_addr;
+    wire [4:0] rs2_addr;
+    wire [4:0] rd_addr;
     wire [31:0] rs1_data;
     wire [31:0] rs2_data;
+
+    wire [31:0] imm;
+    wire [31:0] op2;
     //-------DEBOUNCE--------
     debounce u_debounce(
         .clk(clk),
@@ -37,11 +41,12 @@ module top(
     //-----------------------
     
     //---------ALU------------
+    assign op2 = (alu_src)? imm : rs2_data;
     alu u_alu(
         .alu_op(alu_op),
         .op1(rs1_data),
-        .op2(rs2_data),
-        .result(wr_data),
+        .op2(op2),
+        .alu_result(wr_data)
     );
     //-----------------------
 
@@ -49,10 +54,18 @@ module top(
     decoder u_decoder(
         .inst(inst),
         .wr_en(wr_en),
+        .alu_src(alu_src),
         .rs1_addr(rs1_addr),
         .rs2_addr(rs2_addr),
         .rd_addr(rd_addr),
         .alu_op(alu_op)
+    );
+    //-----------------------
+
+    //--------IMM_GEN--------
+    imm_gen u_imm_gen(
+        .inst(inst),
+        .imm(imm)
     );
     //-----------------------
 

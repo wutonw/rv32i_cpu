@@ -4,16 +4,16 @@ module regfile(
 
     //write port
     input wire wr_en,
-    input wire [31:0] wr_addr,
+    input wire [4:0] wr_addr,
     input wire [31:0] wr_data,
 
     //read port 1
-    input wire [31:0] rs1_addr,
+    input wire [4:0] rs1_addr,
     output wire [31:0] rs1_data,
 
     //read port 2
-    input wire [31:0] rs2_addr,
-    output wire [31:0] rs2_data,
+    input wire [4:0] rs2_addr,
+    output wire [31:0] rs2_data
 );
 
     reg [31:0] rf [0:31];//32 bits rf

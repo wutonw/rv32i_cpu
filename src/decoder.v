@@ -8,8 +8,10 @@ module decoder(
     output reg ext_u,//0:ext,1:u_ext
     output reg [1:0] ram_size,//00:B, 01:H, 10:W
     output reg ram_we,
-    output reg [1:0] wb_sel,//00:alu, 01:ram
+    output reg [1:0] wb_sel,//00:alu, 01:ram, 10:pc+4
     output reg branch,
+    output reg jump,
+    output reg jump_reg,
 
     output wire [4:0] rs1_addr,
     output wire [4:0] rs2_addr,
@@ -28,13 +30,15 @@ module decoder(
     always @(*)begin
         alu_op=`ALU_ADD; 
         wr_en=0;
-        alu_src_op2=0;
         alu_src_op1=0;
+        alu_src_op2=0;
         ext_u=0;
         ram_size=0;
         ram_we=0;
         wb_sel=0;
         branch=0;
+        jump=0;
+        jump_reg=0;
         case(opcode)
             `OP_R_TYPE:begin
                 wr_en=1;
@@ -102,10 +106,19 @@ module decoder(
                 alu_src_op1 = 2'b10;
                 alu_src_op2 = 1;
                 wr_en = 1;
-                lu_op = `ALU_ADD;
+                alu_op = `ALU_ADD;
             end
             `OP_JAL:begin
-                
+                wr_en = 1;
+                jump=1;
+                wb_sel = 2'b10;
+            end
+            `OP_JALR:begin
+                wr_en = 1;
+                wb_sel = 2'b10;
+                alu_src_op2 = 1;
+                jump_reg = 1;
+                alu_op =`ALU_ADD;
             end
         endcase
     end

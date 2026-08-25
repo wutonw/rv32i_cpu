@@ -86,6 +86,8 @@ module top(
     //--------DECODER--------
     wire [1:0] wb_sel;
     wire branch;
+    wire jump;
+    wire jump_reg;
     decoder u_decoder(
         .inst(inst),
         .wr_en(raw_wr_en),
@@ -96,6 +98,8 @@ module top(
         .ram_we(ram_we),
         .wb_sel(wb_sel),
         .branch(branch),
+        .jump(jump),
+        .jump_reg(jump_reg),
         .rs1_addr(rs1_addr),
         .rs2_addr(rs2_addr),
         .rd_addr(rd_addr),
@@ -109,6 +113,8 @@ module top(
         .rst_n(rst_n),
         .stall(stall),
         .branch(branch),
+        .jump(jump),
+        .jump_reg(jump_reg),
         .imm(imm),
         .alu_result(alu_result),
         .pc(pc)

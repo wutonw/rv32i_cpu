@@ -3,6 +3,8 @@ module pc_reg(
     input wire rst_n,
     input wire stall,
     input wire branch,
+    input wire jump,
+    input wire jump_reg,
 
     input wire [31:0] imm,
     input wire [31:0] alu_result,
@@ -15,8 +17,10 @@ module pc_reg(
         end else if (stall)begin
             pc <= pc;
         end else begin
-            if(branch && alu_result[0])begin
+            if( (branch && alu_result[0]) || jump )begin
                 pc <= pc + imm;
+            end else if (jump_reg)begin
+                pc <= {alu_result[31:1],1'b0};
             end else begin
                 pc <= pc + 32'd4;
             end

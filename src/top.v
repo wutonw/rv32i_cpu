@@ -6,9 +6,11 @@ module top(
     input wire [31:0] inst,
     output wire [31:0] inst_addr
 );
+    wire [31:0] pc;
+    assign inst_addr = pc;
     wire rst_n;
     wire raw_wr_en;
-    wire alu_src;
+    wire alu_src_op2;
     wire ram_we;
     wire ext_u;
     wire [1:0] ram_size;
@@ -35,9 +37,10 @@ module top(
     
     //--------REGFILE--------
     wire [31:0] alu_result;
+    wire [31:0] pc_plus_4 = pc + 32'd4;
     assign wr_data = (wb_sel == 2'b00)? alu_result :
                     (wb_sel == 2'b01)? ram_r_data :
-                    inst_addr;//暂时占位
+                    pc_plus_4;//暂时占位
     wire wr_en = raw_wr_en && (!ram_req || load_wait);
     regfile u_regfile(
         .clk(clk),
@@ -66,7 +69,7 @@ module top(
     //-----------------------
     
     //---------ALU-----------
-    assign op2 = (alu_src)? imm : rs2_data;
+    assign op2 = (alu_src_op2)? imm : rs2_data;
     alu u_alu(
         .alu_op(alu_op),
         .op1(rs1_data),
@@ -77,14 +80,16 @@ module top(
 
     //--------DECODER--------
     wire [1:0] wb_sel;
+    wire branch;
     decoder u_decoder(
         .inst(inst),
         .wr_en(raw_wr_en),
-        .alu_src(alu_src),
+        .alu_src_op2(alu_src_op2),
         .ext_u(ext_u),
         .ram_size(ram_size),
         .ram_we(ram_we),
         .wb_sel(wb_sel),
+        .branch(branch),
         .rs1_addr(rs1_addr),
         .rs2_addr(rs2_addr),
         .rd_addr(rd_addr),
@@ -97,7 +102,10 @@ module top(
         .clk(clk),
         .rst_n(rst_n),
         .stall(stall),
-        .pc(inst_addr)
+        .branch(branch),
+        .imm(imm),
+        .alu_result(alu_result),
+        .pc(pc)
     );
     //-----------------------
 
@@ -147,7 +155,7 @@ module top(
         end
     end
     wire load_stall = ram_req && !load_wait;
-    
+
     //store
     always @(*)begin
         ram_s_we = 4'b0;

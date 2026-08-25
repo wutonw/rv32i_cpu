@@ -10,6 +10,7 @@ module top(
     assign inst_addr = pc;
     wire rst_n;
     wire raw_wr_en;
+    wire [1:0] alu_src_op1;
     wire alu_src_op2;
     wire ram_we;
     wire ext_u;
@@ -26,6 +27,7 @@ module top(
     wire stall = load_stall;
 
     wire [31:0] imm;
+    wire [31:0] op1;
     wire [31:0] op2;
     //-------DEBOUNCE--------
     debounce u_debounce(
@@ -69,10 +71,13 @@ module top(
     //-----------------------
     
     //---------ALU-----------
+    assign op1= (alu_src_op1 == 2'b00) ? rs1_data :
+                (alu_src_op1== 2'b01) ? 32'b0 :
+                pc;
     assign op2 = (alu_src_op2)? imm : rs2_data;
     alu u_alu(
         .alu_op(alu_op),
-        .op1(rs1_data),
+        .op1(op1),
         .op2(op2),
         .alu_result(alu_result)
     );
@@ -84,6 +89,7 @@ module top(
     decoder u_decoder(
         .inst(inst),
         .wr_en(raw_wr_en),
+        .alu_src_op1(alu_src_op1),
         .alu_src_op2(alu_src_op2),
         .ext_u(ext_u),
         .ram_size(ram_size),

@@ -2,6 +2,8 @@
 module decoder(
     input wire [31:0] inst,
     output reg wr_en,
+
+    output reg [1:0] alu_src_op1,//00:rs1,01:0,10:pc
     output reg alu_src_op2,//0:rs2,1:imm
     output reg ext_u,//0:ext,1:u_ext
     output reg [1:0] ram_size,//00:B, 01:H, 10:W
@@ -27,6 +29,7 @@ module decoder(
         alu_op=`ALU_ADD; 
         wr_en=0;
         alu_src_op2=0;
+        alu_src_op1=0;
         ext_u=0;
         ram_size=0;
         ram_we=0;
@@ -90,6 +93,18 @@ module decoder(
                 endcase
             end
             `OP_LUI:begin
+                alu_src_op1 = 2'b01;
+                alu_src_op2 = 1;
+                wr_en = 1;
+                alu_op = `ALU_ADD;
+            end
+            `OP_AUIPC:begin
+                alu_src_op1 = 2'b10;
+                alu_src_op2 = 1;
+                wr_en = 1;
+                lu_op = `ALU_ADD;
+            end
+            `OP_JAL:begin
                 
             end
         endcase

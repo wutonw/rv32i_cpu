@@ -53,13 +53,14 @@ module top(
     //-----------------------
 
     //---------RAM-----------
+    wire real_ram_we = ram_we && ! stall;
+    reg [3:0] ram_s_we;
+    reg [31:0] ram_w_data;
     ram u_ram(
         .clk(clk),
-        .ram_we(ram_we),
+        .we(ram_s_we),
         .addr(alu_result),
-        .ram_size(ram_size),
-        .ext_u(ext_u),
-        .ram_w_data(),
+        .ram_w_data(ram_w_data),
         .ram_r_data(raw_ram_r_data)
     );
     //-----------------------
@@ -146,4 +147,24 @@ module top(
         end
     end
     wire load_stall = ram_req && !load_wait;
+    
+    //store
+    always @(*)begin
+        ram_s_we = 4'b0;
+        ram_w_data = rs2_data;
+        if(real_ram_we)begin
+            case(ram_size)
+                2'b00:begin
+                    ram_w_data = {4{rs2_data[7:0]}};
+                    ram_s_we = 4'b0001 << alu_result[1:0];
+                end
+                2'b01:begin
+                    ram_w_data = {2{rs2_data[15:0]}};
+                    ram_s_we = (alu_result[1]) ? 4'b1100 : 4'b0011;
+                end
+                2'b10: ram_s_we = 4'b1111;
+            endcase
+        end
+    end
+    
 endmodule

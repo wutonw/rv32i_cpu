@@ -66,6 +66,12 @@ module decoder(
                 alu_op = `ALU_ADD;
                 wb_sel = 1;
             end
+            `OP_STORE:begin
+                ram_we = 1;
+                alu_src = 1;
+                alu_op = `ALU_ADD;
+                ram_size=funct3[1:0];
+            end
 
         endcase
     end

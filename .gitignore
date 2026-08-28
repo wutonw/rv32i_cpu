@@ -4,6 +4,7 @@ impl/
 tb
 参考文件
 tmp
+firmware/build/
 
 # Icarus Verilog
 *.vcd

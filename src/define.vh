@@ -2,6 +2,7 @@
 `define RV32I_DEFINE_VH
 
 // Opcode 宏定义 (标准 RISC-V RV32I 定义)
+`define OP_SYSTEM   7'b1110011
 `define OP_R_TYPE   7'b0110011  // ADD, SUB, AND, OR 等
 `define OP_I_TYPE   7'b0010011  // ADDI, ANDI 等
 `define OP_LOAD     7'b0000011  // LW 等

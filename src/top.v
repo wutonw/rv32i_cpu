@@ -24,6 +24,19 @@ module top(
     wire [31:0] rs2_data;
     wire [31:0] raw_ram_r_data;
 
+    wire [11:0] csr_addr;
+    reg [31:0] csr_w_data;
+    wire [31:0] csr_r_data;
+    wire csr_we;
+    wire trap_enter;
+    wire trap_exit;
+    wire [31:0] trap_pc;
+    wire [31:0] trap_cause;
+    wire [31:0] trap_vector;
+    wire [31:0] mepc_out;
+    wire global_intr_en;
+
+
     wire stall = load_stall;
 
     wire [31:0] imm;
@@ -42,7 +55,8 @@ module top(
     wire [31:0] pc_plus_4 = pc + 32'd4;
     assign wr_data = (wb_sel == 2'b00)? alu_result :
                     (wb_sel == 2'b01)? ram_r_data :
-                    pc_plus_4;//暂时占位
+                    (wb_sel == 2'b10)? pc_plus_4 :
+                    csr_r_data;
     wire wr_en = raw_wr_en && (!ram_req || load_wait);
     regfile u_regfile(
         .clk(clk),
@@ -100,9 +114,14 @@ module top(
         .branch(branch),
         .jump(jump),
         .jump_reg(jump_reg),
+        .trap_enter(trap_enter),
+        .trap_exit(trap_exit),
+        .trap_cause(trap_cause),
+        .csr_we(csr_we),
         .rs1_addr(rs1_addr),
         .rs2_addr(rs2_addr),
         .rd_addr(rd_addr),
+        .csr_addr(csr_addr),
         .alu_op(alu_op)
     );
     //-----------------------
@@ -117,7 +136,30 @@ module top(
         .jump_reg(jump_reg),
         .imm(imm),
         .alu_result(alu_result),
+        .trap_enter(trap_enter),
+        .trap_exit(trap_exit),
+        .trap_vector(trap_vector),
+        .mepc_out(mepc_out),
         .pc(pc)
+    );
+    //-----------------------
+
+    //------CSR_FILE---------
+    assign trap_pc = pc;
+    csr_file u_csr_file(
+        .clk(clk),
+        .rst_n(rst_n),
+        .csr_addr(csr_addr),
+        .csr_w_data(csr_w_data),
+        .csr_we(csr_we),
+        .csr_r_data(csr_r_data),
+        .trap_enter(trap_enter),
+        .trap_pc(trap_pc),
+        .trap_cause(trap_cause),
+        .trap_vector(trap_vector),
+        .trap_exit(trap_exit),
+        .mepc_out(mepc_out),
+        .global_intr_en(global_intr_en)
     );
     //-----------------------
 
@@ -187,4 +229,17 @@ module top(
         end
     end
     
+    //csr
+    wire [31:0] zimm_32 = {27'b0 , rs1_addr};
+    always @(*)begin
+        case(inst[14:12])
+            3'b001: csr_w_data = rs1_data;
+            3'b010: csr_w_data = csr_r_data | rs1_data;
+            3'b011: csr_w_data = csr_r_data & ~rs1_data;
+            3'b101: csr_w_data = zimm_32;
+            3'b110: csr_w_data = csr_r_data | zimm_32;
+            3'b111: csr_w_data = csr_r_data & ~zimm_32;
+            default : csr_w_data = csr_r_data;
+        endcase
+    end
 endmodule

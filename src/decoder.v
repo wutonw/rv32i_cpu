@@ -8,14 +8,20 @@ module decoder(
     output reg ext_u,//0:ext,1:u_ext
     output reg [1:0] ram_size,//00:B, 01:H, 10:W
     output reg ram_we,
-    output reg [1:0] wb_sel,//00:alu, 01:ram, 10:pc+4
+    output reg [1:0] wb_sel,//00:alu, 01:ram, 10:pc+4, 11:csr_r_data
     output reg branch,
     output reg jump,
     output reg jump_reg,
 
+    output reg trap_enter,
+    output reg trap_exit,
+    output reg [31:0] trap_cause,
+    output reg csr_we,
+
     output wire [4:0] rs1_addr,
     output wire [4:0] rs2_addr,
     output wire [4:0] rd_addr,
+    output wire [11:0] csr_addr,
 
     output reg [3:0] alu_op
 );
@@ -26,6 +32,7 @@ module decoder(
     assign rs1_addr = inst[19:15];
     assign rs2_addr = inst[24:20];
     assign rd_addr = inst[11:7];
+    assign csr_addr = inst[31:20];
 
     always @(*)begin
         alu_op=`ALU_ADD; 
@@ -39,6 +46,9 @@ module decoder(
         branch=0;
         jump=0;
         jump_reg=0;
+        trap_enter=0;
+        trap_exit=0;
+        csr_we=0;
         case(opcode)
             `OP_R_TYPE:begin
                 wr_en=1;
@@ -119,6 +129,34 @@ module decoder(
                 alu_src_op2 = 1;
                 jump_reg = 1;
                 alu_op =`ALU_ADD;
+            end
+            `OP_SYSTEM:begin
+                if(funct3 == 3'b0)begin
+                    case(inst[31:20])
+                        //ecall
+                        12'h000:begin
+                            trap_enter = 1;
+                            trap_cause = 32'd11;
+                        end
+                        //ebreak
+                        12'h001:begin
+                            trap_enter = 1;
+                            trap_cause = 32'd3;
+                        end
+                        //mert
+                        12'h302:begin
+                            trap_exit = 1;
+                        end
+                        default: ;
+                    endcase
+                end else begin
+                    if(funct3 != 3'b100)begin
+                        //csr
+                        csr_we = 1;
+                        wr_en = 1;
+                        wb_sel = 2'b11;
+                    end
+                end
             end
         endcase
     end

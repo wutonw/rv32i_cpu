@@ -7,15 +7,8 @@ module ram(
     output reg [31:0] ram_r_data
 );
 
-    reg [31:0] ram [0:1023];//4KB
-    wire [9:0] word_index = {22'b0,addr[11:2]};
-
-    integer i;
-    initial begin
-        for (i = 0; i < 1024; i = i + 1)begin
-            ram[i] = 32'b0;
-        end
-    end
+    reg [31:0] ram [0:8191];//32KB
+    wire [12:0] word_index = addr[14:2];
 
     always @(posedge clk)begin
         if(we[0]) ram[word_index][7:0] <= ram_w_data[7:0];

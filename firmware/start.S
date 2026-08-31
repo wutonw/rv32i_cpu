@@ -2,7 +2,7 @@
 .globl _start
 
 _start:
-    li sp, 0x1000
+    li sp, 0x8000
     call main
 
 1:

@@ -72,7 +72,6 @@ module top(
 
     //---------RAM-----------
     reg [3:0] tmp_ram_s_we;
-    wire real_ram_we = ram_we && ! stall;
     wire [3:0] ram_s_we = tmp_ram_s_we & ~{4{trap_enter}};
     reg [31:0] ram_w_data;
     ram u_ram(
@@ -152,8 +151,7 @@ module top(
     //-----------------------
 
     //------CSR_FILE---------
-    assign trap_enter = decode_trap_enter || load_illegal_inst
-                    || store_illegal_inst || illegal_inst
+    assign trap_enter = decode_trap_enter || illegal_inst
                     ||load_misaligned || store_misaligned || inst_address_misaligned;
     reg [31:0] trap_cause;
     assign trap_pc = pc;
@@ -183,13 +181,11 @@ module top(
 
     //lsu选择+load_stall
     reg load_misaligned;
-    reg load_illegal_inst;
     reg load_wait;
     reg [31:0] ram_r_data;
     wire [31:0] shift_data = raw_ram_r_data >> {alu_result[1:0], 3'b000};
     wire ram_req = (wb_sel == 2'b01);
     always @(*)begin
-        load_illegal_inst = 0;
         load_misaligned = 0;
         ram_r_data = raw_ram_r_data;
         if(inst[6:0] == `OP_LOAD)begin
@@ -214,21 +210,17 @@ module top(
                 end
                 2'b10:begin
                     if (alu_result[1:0] == 2'b0)begin
-                        if (ext_u==0)begin
-                            ram_r_data = raw_ram_r_data;
-                        end else begin
-                            load_illegal_inst = 1;
-                        end
+                        ram_r_data = raw_ram_r_data;
                     end else begin
                         load_misaligned = 1;
                     end
                 end
-                default: load_illegal_inst = 1;
+                default: ;
             endcase
         end
     end
     always @(posedge clk or negedge rst_n)begin
-        if(!rst_n)begin
+        if(!rst_n || trap_enter)begin
             load_wait <= 0;
         end else begin
             if(ram_req && !load_wait)begin
@@ -242,14 +234,12 @@ module top(
 
     //store
     reg store_misaligned;
-    reg store_illegal_inst;
     wire [2:0] tmp = {ext_u,ram_size};
     always @(*)begin
         tmp_ram_s_we = 4'b0;
         ram_w_data = rs2_data;
         store_misaligned = 0;
-        store_illegal_inst = 0;
-        if(real_ram_we)begin
+        if(ram_we)begin
             case(tmp)
                 3'b000:begin
                     ram_w_data = {4{rs2_data[7:0]}};
@@ -270,7 +260,7 @@ module top(
                         store_misaligned = 1;
                     end
                 end
-                default: store_illegal_inst = 1;
+                default: ;
             endcase
         end
     end
@@ -292,7 +282,7 @@ module top(
     //trap_cause
     always @(*)begin
         trap_cause = 0;
-        if(illegal_inst || load_illegal_inst || store_illegal_inst)begin
+        if(illegal_inst)begin
             trap_cause = 2;
         end else if (load_misaligned)begin
             trap_cause = 4;

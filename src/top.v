@@ -7,6 +7,7 @@ module top(
     output wire [31:0] inst_addr
 );
     wire [31:0] pc;
+    wire trap_enter;
     assign inst_addr = pc;
     wire rst_n;
     wire raw_wr_en;
@@ -28,10 +29,8 @@ module top(
     reg [31:0] csr_w_data;
     wire [31:0] csr_r_data;
     wire csr_we;
-    wire trap_enter;
     wire trap_exit;
     wire [31:0] trap_pc;
-    wire [31:0] trap_cause;
     wire [31:0] trap_vector;
     wire [31:0] mepc_out;
     wire global_intr_en;
@@ -57,7 +56,7 @@ module top(
                     (wb_sel == 2'b01)? ram_r_data :
                     (wb_sel == 2'b10)? pc_plus_4 :
                     csr_r_data;
-    wire wr_en = raw_wr_en && (!ram_req || load_wait);
+    wire wr_en = raw_wr_en && (!ram_req || load_wait) && ~trap_enter;
     regfile u_regfile(
         .clk(clk),
         .rst_n(rst_n),
@@ -72,8 +71,9 @@ module top(
     //-----------------------
 
     //---------RAM-----------
+    reg [3:0] tmp_ram_s_we;
     wire real_ram_we = ram_we && ! stall;
-    reg [3:0] ram_s_we;
+    wire [3:0] ram_s_we = tmp_ram_s_we & ~{4{trap_enter}};
     reg [31:0] ram_w_data;
     ram u_ram(
         .clk(clk),
@@ -98,6 +98,8 @@ module top(
     //-----------------------
 
     //--------DECODER--------
+    wire decode_trap_enter;
+    wire illegal_inst;
     wire [1:0] wb_sel;
     wire branch;
     wire jump;
@@ -105,6 +107,7 @@ module top(
     decoder u_decoder(
         .inst(inst),
         .wr_en(raw_wr_en),
+        .illegal_inst(illegal_inst),
         .alu_src_op1(alu_src_op1),
         .alu_src_op2(alu_src_op2),
         .ext_u(ext_u),
@@ -114,9 +117,8 @@ module top(
         .branch(branch),
         .jump(jump),
         .jump_reg(jump_reg),
-        .trap_enter(trap_enter),
+        .decode_trap_enter(decode_trap_enter),
         .trap_exit(trap_exit),
-        .trap_cause(trap_cause),
         .csr_we(csr_we),
         .rs1_addr(rs1_addr),
         .rs2_addr(rs2_addr),
@@ -127,6 +129,11 @@ module top(
     //-----------------------
 
     //--------PC_REG---------
+    wire [31:0] target_addr = jump_reg ? {alu_result[31:1], 1'b0} :
+                            (jump || (branch && alu_result[0])) ? pc + imm :
+                            32'b0;
+    wire inst_address_misaligned = (jump_reg || jump || (branch && alu_result[0])) &&
+                                        (target_addr[1:0] !=2'b0);
     pc_reg u_pc_reg(
         .clk(clk),
         .rst_n(rst_n),
@@ -145,6 +152,10 @@ module top(
     //-----------------------
 
     //------CSR_FILE---------
+    assign trap_enter = decode_trap_enter || load_illegal_inst
+                    || store_illegal_inst || illegal_inst
+                    ||load_misaligned || store_misaligned || inst_address_misaligned;
+    reg [31:0] trap_cause;
     assign trap_pc = pc;
     csr_file u_csr_file(
         .clk(clk),
@@ -171,10 +182,15 @@ module top(
     //-----------------------
 
     //lsu选择+load_stall
+    reg load_misaligned;
+    reg load_illegal_inst;
+    reg load_wait;
     reg [31:0] ram_r_data;
     wire [31:0] shift_data = raw_ram_r_data >> {alu_result[1:0], 3'b000};
     wire ram_req = (wb_sel == 2'b01);
     always @(*)begin
+        load_illegal_inst = 0;
+        load_misaligned = 0;
         ram_r_data = raw_ram_r_data;
         if(inst[6:0] == `OP_LOAD)begin
             case(ram_size)
@@ -186,17 +202,31 @@ module top(
                     end
                 end
                 2'b01:begin
-                    if(ext_u)begin
-                        ram_r_data={16'b0,shift_data[15:0]};
+                    if (alu_result[0] == 0)begin
+                        if(ext_u)begin
+                            ram_r_data={16'b0,shift_data[15:0]};
+                        end else begin
+                            ram_r_data={{16{shift_data[15]}},shift_data[15:0]};
+                        end
                     end else begin
-                        ram_r_data={{16{shift_data[15]}},shift_data[15:0]};
+                        load_misaligned = 1;
                     end
                 end
-                default: ram_r_data = raw_ram_r_data;
+                2'b10:begin
+                    if (alu_result[1:0] == 2'b0)begin
+                        if (ext_u==0)begin
+                            ram_r_data = raw_ram_r_data;
+                        end else begin
+                            load_illegal_inst = 1;
+                        end
+                    end else begin
+                        load_misaligned = 1;
+                    end
+                end
+                default: load_illegal_inst = 1;
             endcase
         end
     end
-    reg load_wait;
     always @(posedge clk or negedge rst_n)begin
         if(!rst_n)begin
             load_wait <= 0;
@@ -208,23 +238,39 @@ module top(
             end
         end
     end
-    wire load_stall = ram_req && !load_wait;
+    wire load_stall = ram_req && !load_wait && !trap_enter;
 
     //store
+    reg store_misaligned;
+    reg store_illegal_inst;
+    wire [2:0] tmp = {ext_u,ram_size};
     always @(*)begin
-        ram_s_we = 4'b0;
+        tmp_ram_s_we = 4'b0;
         ram_w_data = rs2_data;
+        store_misaligned = 0;
+        store_illegal_inst = 0;
         if(real_ram_we)begin
-            case(ram_size)
-                2'b00:begin
+            case(tmp)
+                3'b000:begin
                     ram_w_data = {4{rs2_data[7:0]}};
-                    ram_s_we = 4'b0001 << alu_result[1:0];
+                    tmp_ram_s_we = 4'b0001 << alu_result[1:0];
                 end
-                2'b01:begin
-                    ram_w_data = {2{rs2_data[15:0]}};
-                    ram_s_we = (alu_result[1]) ? 4'b1100 : 4'b0011;
+                3'b001:begin
+                    if(alu_result[0] == 0)begin
+                        ram_w_data = {2{rs2_data[15:0]}};
+                        tmp_ram_s_we = (alu_result[1]) ? 4'b1100 : 4'b0011;
+                    end else begin
+                        store_misaligned = 1;
+                    end
                 end
-                2'b10: ram_s_we = 4'b1111;
+                3'b010:begin
+                    if(alu_result[1:0] == 2'b0)begin
+                        tmp_ram_s_we = 4'b1111;
+                    end else begin
+                        store_misaligned = 1;
+                    end
+                end
+                default: store_illegal_inst = 1;
             endcase
         end
     end
@@ -241,5 +287,27 @@ module top(
             3'b111: csr_w_data = csr_r_data & ~zimm_32;
             default : csr_w_data = csr_r_data;
         endcase
+    end
+
+    //trap_cause
+    always @(*)begin
+        trap_cause = 0;
+        if(illegal_inst || load_illegal_inst || store_illegal_inst)begin
+            trap_cause = 2;
+        end else if (load_misaligned)begin
+            trap_cause = 4;
+        end else if (store_misaligned)begin
+            trap_cause = 6;
+        end else if (decode_trap_enter)begin
+            if(inst[31:20] == 12'h000)begin
+                //ecall
+                trap_cause = 11;
+            end else if(inst[31:20] == 12'h001)begin
+                //ebreak
+                trap_cause = 3;
+            end
+        end else if (inst_address_misaligned)begin
+            trap_cause = 0;
+        end
     end
 endmodule

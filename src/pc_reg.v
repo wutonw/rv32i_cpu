@@ -1,6 +1,7 @@
 module pc_reg(
     input wire clk,
     input wire rst_n,
+    
     input wire stall,
     input wire branch,
     input wire jump,
@@ -19,14 +20,14 @@ module pc_reg(
     always @(posedge clk or negedge rst_n)begin
         if(!rst_n)begin
             pc <= 32'b0;
-        end else if (stall)begin
-            pc <= pc;
-        end else begin
-            if(trap_enter)begin
+        end else if(trap_enter)begin
                 pc <= trap_vector;
-            end else if (trap_exit)begin
+        end else if (trap_exit)begin
                 pc <= mepc_out;
-            end else if( (branch && alu_result[0]) || jump )begin
+        end else begin
+            if (stall)begin
+                pc <= pc;
+            end else if( (branch && alu_result[0]) || jump)begin
                 pc <= pc + imm;
             end else if (jump_reg)begin
                 pc <= {alu_result[31:1],1'b0};

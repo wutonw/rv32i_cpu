@@ -6,14 +6,18 @@
     <Device name="GW2A-18C" pn="GW2A-LV18PG256C8/I7">gw2a18c-011</Device>
     <FileList>
         <File path="src/alu.v" type="file.verilog" enable="1"/>
+        <File path="src/board_top.v" type="file.verilog" enable="1"/>
+        <File path="src/firmware_rom_async.v" type="file.verilog" enable="1"/>
         <File path="src/csr_file.v" type="file.verilog" enable="1"/>
         <File path="src/debounce.v" type="file.verilog" enable="1"/>
         <File path="src/decoder.v" type="file.verilog" enable="1"/>
         <File path="src/define.vh" type="file.verilog" enable="1"/>
+        <File path="src/gowin_prom/gowin_prom.v" type="file.verilog" enable="1"/>
         <File path="src/imm_gen.v" type="file.verilog" enable="1"/>
         <File path="src/pc_reg.v" type="file.verilog" enable="1"/>
         <File path="src/ram.v" type="file.verilog" enable="1"/>
         <File path="src/regfile.v" type="file.verilog" enable="1"/>
         <File path="src/top.v" type="file.verilog" enable="1"/>
+        <File path="src/rv32i_cpu.cst" type="file.cst" enable="1"/>
     </FileList>
 </Project>

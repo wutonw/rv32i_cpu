@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-ROM_WORDS = 1024
+ROM_WORDS = 512
 NOP = 0x00000013
 
 
@@ -21,10 +21,13 @@ def bin_to_hex(bin_path: Path, hex_path: Path) -> None:
 
     words.extend([NOP] * (ROM_WORDS - len(words)))
 
-    hex_path.write_text(
-        "".join(f"{word:08x}\n" for word in words),
-        encoding="ascii"
-    )
+    image = "".join(f"{word:08x}\n" for word in words)
+    hex_path.write_text(image, encoding="ascii")
+
+    # Gowin pROM IP uses the same one-32-bit-word-per-line image as the
+    # simulator hex file.  Keep both names synchronized after every build.
+    mi_path = hex_path.with_suffix(".mi")
+    mi_path.write_text(image, encoding="ascii")
 
 
 if __name__ == "__main__":

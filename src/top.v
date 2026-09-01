@@ -4,7 +4,13 @@ module top(
     input wire raw_rst_n,
 
     input wire [31:0] inst,
-    output wire [31:0] inst_addr
+    output wire [31:0] inst_addr,
+
+    // Optional commit monitor outputs. Existing testbenches may leave these
+    // ports unconnected; board_top uses them to latch PASS/FAIL LEDs.
+    output wire        ram_commit,
+    output wire [31:0] ram_commit_addr,
+    output wire [31:0] ram_commit_data
 );
     wire [31:0] pc;
     wire trap_enter;
@@ -81,6 +87,9 @@ module top(
         .ram_w_data(ram_w_data),
         .ram_r_data(raw_ram_r_data)
     );
+    assign ram_commit      = |ram_s_we;
+    assign ram_commit_addr = alu_result;
+    assign ram_commit_data = ram_w_data;
     //-----------------------
     
     //---------ALU-----------

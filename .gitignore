@@ -5,6 +5,7 @@ tb
 参考文件
 tmp
 firmware/build/
+src/core/cpu_core_single.v
 
 # Icarus Verilog
 *.vcd

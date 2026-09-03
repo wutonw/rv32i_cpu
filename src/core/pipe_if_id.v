@@ -12,7 +12,6 @@ module pipe_if_id(
 
     always @(posedge clk or negedge rst_n)begin
         if(!rst_n)begin
-            if_id_pc <= 32'h0000_0000;
             if_id_valid <= 1'b0;
         end else if(!stall)begin
             if_id_pc <= pc;

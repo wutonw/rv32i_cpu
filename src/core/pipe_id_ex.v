@@ -1,6 +1,7 @@
 module pipe_id_ex(
     input wire clk,
     input wire rst_n,
+    input wire stall,
     input wire id_ex_flush,
 
     input wire if_id_valid,
@@ -34,6 +35,7 @@ module pipe_id_ex(
     input wire id_branch,
     input wire id_jump,
     input wire id_jump_reg,
+    input wire id_is_load,
     input wire id_decode_trap_enter,
     input wire id_trap_exit,
     input wire id_csr_we,
@@ -48,6 +50,7 @@ module pipe_id_ex(
     output reg id_ex_branch,
     output reg id_ex_jump,
     output reg id_ex_jump_reg,
+    output reg id_ex_is_load,
     output reg id_ex_decode_trap_enter,
     output reg id_ex_trap_exit,
     output reg id_ex_csr_we,
@@ -69,6 +72,7 @@ module pipe_id_ex(
             id_ex_branch <= 1'b0;
             id_ex_jump <= 1'b0;
             id_ex_jump_reg <= 1'b0;
+            id_ex_is_load <= 1'b0;
             id_ex_csr_we <= 1'b0;
             id_ex_decode_trap_enter <= 1'b0;
             id_ex_trap_exit <= 1'b0;
@@ -85,12 +89,13 @@ module pipe_id_ex(
             id_ex_wb_sel <= 2'b0;
             id_ex_branch <= 1'b0;
             id_ex_jump <= 1'b0;
+            id_ex_is_load <= 1'b0;
             id_ex_jump_reg <= 1'b0;
             id_ex_csr_we <= 1'b0;
             id_ex_decode_trap_enter <= 1'b0;
             id_ex_trap_exit <= 1'b0;
             id_ex_alu_op <= 4'b0;
-        end else begin
+        end else if(!stall)begin
             id_ex_valid <= if_id_valid;
             id_ex_pc <= if_id_pc;
             id_ex_inst <= if_id_inst;
@@ -111,6 +116,7 @@ module pipe_id_ex(
             id_ex_branch <= id_branch;
             id_ex_jump <= id_jump;
             id_ex_jump_reg <= id_jump_reg;
+            id_ex_is_load <= id_is_load;
             id_ex_decode_trap_enter <= id_decode_trap_enter;
             id_ex_trap_exit <= id_trap_exit;
             id_ex_csr_we <= id_csr_we;

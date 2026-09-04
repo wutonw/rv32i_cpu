@@ -7,13 +7,32 @@ module cpu_core(
 );
     assign inst_addr = pc;
     wire stall;
-    reg if_id_flush;
-    reg id_ex_flush;
+    wire load_use_hazard;
+    assign stall = load_use_hazard;;
     // ==================================================
     // IF Stage
     reg [31:0] next_pc;
     wire [31:0] pc;
-    assign stall = 1'b0;
+
+    //flush and next_pc logic
+    reg if_id_flush;
+    reg id_ex_flush;
+    always @(*)begin
+        if_id_flush = 0;
+        id_ex_flush = 0;
+        next_pc = pc + 32'd4;
+        if(id_ex_valid)begin
+            if((id_ex_branch && ex_alu_result[0]) || id_ex_jump)begin
+                next_pc = id_ex_pc + id_ex_imm;
+                if_id_flush = 1;
+                id_ex_flush = 1;
+            end else if(id_ex_jump_reg)begin
+                next_pc = {ex_alu_result[31:1],1'b0};
+                if_id_flush = 1;
+                id_ex_flush = 1;
+            end
+        end
+    end
     
     pc_reg u_pc_reg(
         .clk(clk),
@@ -55,6 +74,7 @@ module cpu_core(
     wire id_branch;
     wire id_jump;
     wire id_jump_reg;
+    wire id_is_load;
     wire id_decode_trap_enter;
     wire id_trap_exit;
     wire id_csr_we;
@@ -76,6 +96,7 @@ module cpu_core(
         .branch(id_branch),
         .jump(id_jump),
         .jump_reg(id_jump_reg),
+        .is_load(id_is_load),
         .decode_trap_enter(id_decode_trap_enter),
         .trap_exit(id_trap_exit),
         .csr_we(id_csr_we),
@@ -137,9 +158,11 @@ module cpu_core(
     wire id_ex_trap_exit;
     wire id_ex_csr_we;
     wire [3:0] id_ex_alu_op;
+    wire id_ex_is_load;
     pipe_id_ex u_pipe_id_ex(
         .clk(clk),
         .rst_n(rst_n),
+        .stall(stall),
         .id_ex_flush(id_ex_flush),
         .if_id_valid(if_id_valid),
         .if_id_pc(if_id_pc),
@@ -170,6 +193,7 @@ module cpu_core(
         .id_branch(id_branch),
         .id_jump(id_jump),
         .id_jump_reg(id_jump_reg),
+        .id_is_load(id_is_load),
         .id_decode_trap_enter(id_decode_trap_enter),
         .id_trap_exit(id_trap_exit),
         .id_csr_we(id_csr_we),
@@ -184,6 +208,7 @@ module cpu_core(
         .id_ex_branch(id_ex_branch),
         .id_ex_jump(id_ex_jump),
         .id_ex_jump_reg(id_ex_jump_reg),
+        .id_ex_is_load(id_ex_is_load),
         .id_ex_decode_trap_enter(id_ex_decode_trap_enter),
         .id_ex_trap_exit(id_ex_trap_exit),
         .id_ex_csr_we(id_ex_csr_we),
@@ -194,33 +219,51 @@ module cpu_core(
 
     // ==================================================
     // EX Stage
-    wire [31:0] op1;
-    wire [31:0] op2;
+    reg [31:0] op1;
+    reg [31:0] op2;
     wire [31:0] ex_alu_result;
-    assign op1= (id_ex_alu_src_op1 == 2'b00) ? id_ex_rs1_data :
-                (id_ex_alu_src_op1== 2'b01) ? 32'b0 :
-                id_ex_pc;
-    assign op2 = (id_ex_alu_src_op2)? id_ex_imm : id_ex_rs2_data;
+    // assign op1= (id_ex_alu_src_op1 == 2'b00) ? id_ex_rs1_data :
+    //             (id_ex_alu_src_op1== 2'b01) ? 32'b0 :
+    //             id_ex_pc;
+    // assign op2 = (id_ex_alu_src_op2)? id_ex_imm : id_ex_rs2_data;
     alu u_alu(
         .alu_op(id_ex_alu_op),
         .op1(op1),
         .op2(op2),
         .alu_result(ex_alu_result)
     );
+
+    //forward
     always @(*)begin
-        if_id_flush = 0;
-        id_ex_flush = 0;
-        next_pc = pc + 32'd4;
-        if(id_ex_valid)begin
-            if((id_ex_branch && ex_alu_result[0]) || id_ex_jump)begin
-                next_pc = id_ex_pc + id_ex_imm;
-                if_id_flush = 1;
-                id_ex_flush = 1;
-            end else if(id_ex_jump_reg)begin
-                next_pc = {ex_alu_result[31:1],1'b0};
-                if_id_flush = 1;
-                id_ex_flush = 1;
-            end
+        op1 = (id_ex_alu_src_op1 == 2'b00) ? id_ex_rs1_data :
+                (id_ex_alu_src_op1== 2'b01) ? 32'b0 :
+                id_ex_pc;
+        op2 = (id_ex_alu_src_op2)? id_ex_imm : id_ex_rs2_data;
+        if(!ex_mem_is_load && ex_mem_valid && id_ex_valid && 
+            (ex_mem_rd_addr == id_ex_rs1_addr) && 
+            (ex_mem_rd_addr != 5'b0) && ex_mem_wr_en 
+            && (id_ex_alu_src_op1 == 2'b00))begin
+            // ex/mem forward
+            op1 = ex_mem_alu_result;
+        end else if(mem_wb_valid && id_ex_valid &&
+            (mem_wb_rd_addr == id_ex_rs1_addr) && 
+            (mem_wb_rd_addr != 5'b0) && mem_wb_wr_en 
+            && (id_ex_alu_src_op1 == 2'b00))begin
+            // mem/wb forward
+            op1 = wb_wr_data;
+        end
+        if(!ex_mem_is_load && ex_mem_valid && id_ex_valid && 
+            (ex_mem_rd_addr == id_ex_rs2_addr) && 
+            (ex_mem_rd_addr != 5'b0) && ex_mem_wr_en 
+            && !id_ex_alu_src_op2)begin
+            // ex/mem forward
+            op2 = ex_mem_alu_result;
+        end else if(mem_wb_valid && id_ex_valid &&
+            (mem_wb_rd_addr == id_ex_rs2_addr) && 
+            (mem_wb_rd_addr != 5'b0) && mem_wb_wr_en 
+            && !id_ex_alu_src_op2)begin
+            // mem/wb forward
+            op2 = wb_wr_data;
         end
     end
     // ==================================================
@@ -238,6 +281,7 @@ module cpu_core(
     wire [1:0] ex_mem_ram_size;
     wire ex_mem_ram_we;
     wire [1:0] ex_mem_wb_sel;
+    wire ex_mem_is_load;
     pipe_ex_mem u_pipe_ex_mem(
         .clk(clk),
         .rst_n(rst_n),
@@ -293,6 +337,7 @@ module cpu_core(
     wire mem_wb_wr_en;
     wire [4:0] mem_wb_rd_addr;
     wire mem_wb_valid;
+    wire mem_wb_is_load;
     pipe_mem_wb u_pipe_mem_wb(
         .clk(clk),
         .rst_n(rst_n),
@@ -301,11 +346,13 @@ module cpu_core(
         .ex_mem_alu_result(ex_mem_alu_result),
         .mem_ram_r_data(mem_ram_r_data),
         .ex_mem_wr_en(ex_mem_wr_en),
+        .ex_mem_is_load(ex_mem_is_load),
         .mem_wb_pc(mem_wb_pc),
         .mem_wb_wb_sel(mem_wb_wb_sel),
         .mem_wb_alu_result(mem_wb_alu_result),
         .mem_wb_ram_r_data(mem_wb_ram_r_data),
         .mem_wb_wr_en(mem_wb_wr_en),
+        .mem_wb_is_load(mem_wb_is_load),
         .ex_mem_rd_addr(ex_mem_rd_addr),
         .mem_wb_rd_addr(mem_wb_rd_addr),
         .ex_mem_valid(ex_mem_valid),

@@ -13,6 +13,7 @@ module decoder(
     output reg branch,
     output reg jump,
     output reg jump_reg,
+    output reg is_load,
 
     output reg decode_trap_enter,
     output reg trap_exit,
@@ -50,6 +51,7 @@ module decoder(
         branch=0;
         jump=0;
         jump_reg=0;
+        is_load=0;
         decode_trap_enter=0;
         trap_exit=0;
         csr_we=0;
@@ -98,6 +100,7 @@ module decoder(
             end
             `OP_LOAD:begin
                 if (funct3 != 3'b011 && funct3 != 3'b110 && funct3 != 3'b111 )begin
+                    is_load=1;
                     wr_en=1;
                     ext_u=funct3[2];
                     ram_size=funct3[1:0];

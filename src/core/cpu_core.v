@@ -7,12 +7,14 @@ module cpu_core(
 );
     assign inst_addr = pc;
     wire stall;
+    reg if_id_flush;
+    reg id_ex_flush;
     // ==================================================
     // IF Stage
-    wire [31:0] next_pc;
+    reg [31:0] next_pc;
     wire [31:0] pc;
     assign stall = 1'b0;
-    assign next_pc = pc + 32'd4;
+    
     pc_reg u_pc_reg(
         .clk(clk),
         .rst_n(rst_n),
@@ -30,6 +32,7 @@ module cpu_core(
     pipe_if_id u_pipe_if_id(
         .clk(clk),
         .rst_n(rst_n),
+        .if_id_flush(if_id_flush),
         .stall(stall),
         .pc(pc),
         .inst(inst),
@@ -137,6 +140,7 @@ module cpu_core(
     pipe_id_ex u_pipe_id_ex(
         .clk(clk),
         .rst_n(rst_n),
+        .id_ex_flush(id_ex_flush),
         .if_id_valid(if_id_valid),
         .if_id_pc(if_id_pc),
         .if_id_inst(if_id_inst),
@@ -203,8 +207,22 @@ module cpu_core(
         .op2(op2),
         .alu_result(ex_alu_result)
     );
-    
-
+    always @(*)begin
+        if_id_flush = 0;
+        id_ex_flush = 0;
+        next_pc = pc + 32'd4;
+        if(id_ex_valid)begin
+            if((id_ex_branch && ex_alu_result[0]) || id_ex_jump)begin
+                next_pc = id_ex_pc + id_ex_imm;
+                if_id_flush = 1;
+                id_ex_flush = 1;
+            end else if(id_ex_jump_reg)begin
+                next_pc = {ex_alu_result[31:1],1'b0};
+                if_id_flush = 1;
+                id_ex_flush = 1;
+            end
+        end
+    end
     // ==================================================
 
     // ==================================================
@@ -305,7 +323,7 @@ module cpu_core(
     assign wb_wr_en = mem_wb_wr_en && mem_wb_valid;
     assign wb_wr_addr = mem_wb_rd_addr;
     // ==================================================
-
+    //load
     wire [31:0] shift_data = mem_raw_ram_r_data >> {ex_mem_alu_result[1:0], 3'b000};
     wire mem_ram_req = (ex_mem_wb_sel == 2'b01);
     always @(*)begin
@@ -342,7 +360,7 @@ module cpu_core(
             endcase
         end
     end
-
+    //store
     reg [3:0] tmp_ram_s_we;
     wire [2:0] tmp = {ex_mem_ext_u,ex_mem_ram_size};
     always @(*)begin

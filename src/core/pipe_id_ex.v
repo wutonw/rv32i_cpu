@@ -1,6 +1,7 @@
 module pipe_id_ex(
     input wire clk,
     input wire rst_n,
+    input wire id_ex_flush,
 
     input wire if_id_valid,
     input wire [31:0] if_id_pc,
@@ -56,6 +57,23 @@ module pipe_id_ex(
 );
     always @(posedge clk or negedge rst_n)begin
         if(!rst_n)begin
+            id_ex_valid <= 1'b0;
+            id_ex_wr_en <= 1'b0;
+            id_ex_illegal_inst <= 1'b0;
+            id_ex_alu_src_op1 <= 2'b0;
+            id_ex_alu_src_op2 <= 1'b0;
+            id_ex_ext_u <= 1'b0;
+            id_ex_ram_size <= 2'b0;
+            id_ex_ram_we <= 1'b0;
+            id_ex_wb_sel <= 2'b0;
+            id_ex_branch <= 1'b0;
+            id_ex_jump <= 1'b0;
+            id_ex_jump_reg <= 1'b0;
+            id_ex_csr_we <= 1'b0;
+            id_ex_decode_trap_enter <= 1'b0;
+            id_ex_trap_exit <= 1'b0;
+            id_ex_alu_op <= 4'b0;
+        end else if (id_ex_flush)begin
             id_ex_valid <= 1'b0;
             id_ex_wr_en <= 1'b0;
             id_ex_illegal_inst <= 1'b0;

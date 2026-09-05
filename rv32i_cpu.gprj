@@ -5,15 +5,20 @@
     <Version>5</Version>
     <Device name="GW2A-18C" pn="GW2A-LV18PG256C8/I7">gw2a18c-011</Device>
     <FileList>
-        <File path="src/define.vh" type="file.verilog" enable="1"/>
         <File path="src/core/alu.v" type="file.verilog" enable="1"/>
+        <File path="src/core/cpu_core.v" type="file.verilog" enable="1"/>
         <File path="src/core/csr_file.v" type="file.verilog" enable="1"/>
         <File path="src/core/decoder.v" type="file.verilog" enable="1"/>
         <File path="src/core/imm_gen.v" type="file.verilog" enable="1"/>
         <File path="src/core/pc_reg.v" type="file.verilog" enable="1"/>
+        <File path="src/core/pipe_ex_mem.v" type="file.verilog" enable="1"/>
+        <File path="src/core/pipe_id_ex.v" type="file.verilog" enable="1"/>
+        <File path="src/core/pipe_if_id.v" type="file.verilog" enable="1"/>
+        <File path="src/core/pipe_mem_wb.v" type="file.verilog" enable="1"/>
         <File path="src/core/regfile.v" type="file.verilog" enable="1"/>
-        <File path="src/core/cpu_core.v" type="file.verilog" enable="1"/>
+        <File path="src/define.vh" type="file.verilog" enable="1"/>
         <File path="src/periph/debounce.v" type="file.verilog" enable="1"/>
+        <File path="src/periph/gowin_prom/gowin_prom.v" type="file.verilog" enable="1"/>
         <File path="src/periph/ram.v" type="file.verilog" enable="1"/>
         <File path="src/top.v" type="file.verilog" enable="1"/>
         <File path="src/rv32i_cpu.cst" type="file.cst" enable="1"/>

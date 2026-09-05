@@ -14,6 +14,7 @@ module decoder(
     output reg jump,
     output reg jump_reg,
     output reg is_load,
+    output reg is_store,
 
     output reg decode_trap_enter,
     output reg trap_exit,
@@ -24,7 +25,10 @@ module decoder(
     output wire [4:0] rd_addr,
     output wire [11:0] csr_addr,
 
-    output reg [3:0] alu_op
+    output reg [3:0] alu_op,
+
+    output reg use_rs1,
+    output reg use_rs2
 );
 
     wire [6:0] opcode = inst[6:0];
@@ -52,12 +56,17 @@ module decoder(
         jump=0;
         jump_reg=0;
         is_load=0;
+        is_store=0;
         decode_trap_enter=0;
         trap_exit=0;
         csr_we=0;
+        use_rs1=0;
+        use_rs2=0;
         case(opcode)
             `OP_R_TYPE:begin
                 wr_en=1;
+                use_rs1=1;
+                use_rs2=1;
                 if(funct7 == 7'b0)begin
                     case(funct3)
                         3'b000: alu_op = `ALU_ADD;
@@ -73,12 +82,15 @@ module decoder(
                     alu_op = (funct3 == 0)? `ALU_SUB : `ALU_SRA;
                 end else begin
                     wr_en = 0;
+                    use_rs1 = 0;
+                    use_rs2 = 0;
                     illegal_inst = 1;
                 end
             end
             `OP_I_TYPE:begin
                 wr_en=1;
                 alu_src_op2=1;
+                use_rs1=1;
                 case(funct3)
                     3'b000: alu_op = `ALU_ADD;
                     3'b010: alu_op = `ALU_SLT;
@@ -93,6 +105,7 @@ module decoder(
                             alu_op = (funct7[5])? `ALU_SRA : `ALU_SRL;
                         end else begin
                             wr_en = 0;
+                            use_rs1 = 0;
                             illegal_inst = 1;
                         end
                     end
@@ -102,6 +115,7 @@ module decoder(
                 if (funct3 != 3'b011 && funct3 != 3'b110 && funct3 != 3'b111 )begin
                     is_load=1;
                     wr_en=1;
+                    use_rs1 = 1;
                     ext_u=funct3[2];
                     ram_size=funct3[1:0];
                     alu_src_op2=1;
@@ -113,8 +127,11 @@ module decoder(
             end
             `OP_STORE:begin
                 if (funct3 == 3'b0 || funct3 == 3'b001 || funct3 == 3'b010)begin
+                    is_store=1;
                     ram_we = 1;
                     alu_src_op2 = 1;
+                    use_rs1 = 1;
+                    use_rs2 = 1;
                     alu_op = `ALU_ADD;
                     ram_size=funct3[1:0];
                 end else begin
@@ -123,6 +140,8 @@ module decoder(
             end
             `OP_BRANCH:begin
                 branch=1;
+                use_rs1 = 1;
+                use_rs2 = 1;
                 case(funct3)
                     3'b000: alu_op = `ALU_BEQ;
                     3'b001: alu_op = `ALU_BNE;
@@ -132,6 +151,8 @@ module decoder(
                     3'b111: alu_op = `ALU_BGEU;
                     default:begin
                         branch = 0;
+                        use_rs1 = 0;
+                        use_rs2 = 0;
                         illegal_inst = 1;
                     end
                 endcase
@@ -156,6 +177,7 @@ module decoder(
             `OP_JALR:begin
                 if (funct3 == 3'b0)begin
                     wr_en = 1;
+                    use_rs1 = 1;
                     wb_sel = 2'b10;
                     alu_src_op2 = 1;
                     jump_reg = 1;

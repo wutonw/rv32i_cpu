@@ -1,35 +1,43 @@
+`include "define.vh"
 module cpu_core(
     input wire clk,
     input wire rst_n,
 
+    output wire [31:0] pc,
+
     input wire [31:0] inst,
-    output wire [31:0] inst_addr
+    output wire [31:0] inst_addr,
+    output wire prom_ce
 );
-    assign inst_addr = pc;
+
     wire stall;
-    wire load_use_hazard;
-    assign stall = load_use_hazard;;
+    assign inst_addr = pc;
+    assign prom_ce = !stall;
+    reg load_use_hazard;
+    assign stall = load_use_hazard;
     // ==================================================
     // IF Stage
     reg [31:0] next_pc;
     wire [31:0] pc;
 
     //flush and next_pc logic
+    wire id_ex_flush = branch_id_ex_flush || load_id_ex_flush;
     reg if_id_flush;
-    reg id_ex_flush;
+    reg branch_id_ex_flush;
+    reg load_id_ex_flush;
     always @(*)begin
         if_id_flush = 0;
-        id_ex_flush = 0;
+        branch_id_ex_flush = 0;
         next_pc = pc + 32'd4;
         if(id_ex_valid)begin
             if((id_ex_branch && ex_alu_result[0]) || id_ex_jump)begin
                 next_pc = id_ex_pc + id_ex_imm;
                 if_id_flush = 1;
-                id_ex_flush = 1;
+                branch_id_ex_flush = 1;
             end else if(id_ex_jump_reg)begin
                 next_pc = {ex_alu_result[31:1],1'b0};
                 if_id_flush = 1;
-                id_ex_flush = 1;
+                branch_id_ex_flush = 1;
             end
         end
     end
@@ -75,6 +83,7 @@ module cpu_core(
     wire id_jump;
     wire id_jump_reg;
     wire id_is_load;
+    wire id_is_store;
     wire id_decode_trap_enter;
     wire id_trap_exit;
     wire id_csr_we;
@@ -83,6 +92,8 @@ module cpu_core(
     wire [4:0] id_rd_addr;
     wire [11:0] id_csr_addr;
     wire [3:0] id_alu_op;
+    wire id_use_rs1;
+    wire id_use_rs2;
     decoder u_decoder(
         .inst(if_id_inst),
         .wr_en(id_wr_en),
@@ -97,6 +108,7 @@ module cpu_core(
         .jump(id_jump),
         .jump_reg(id_jump_reg),
         .is_load(id_is_load),
+        .is_store(id_is_store),
         .decode_trap_enter(id_decode_trap_enter),
         .trap_exit(id_trap_exit),
         .csr_we(id_csr_we),
@@ -104,7 +116,9 @@ module cpu_core(
         .rs2_addr(id_rs2_addr),
         .rd_addr(id_rd_addr),
         .csr_addr(id_csr_addr),
-        .alu_op(id_alu_op)
+        .alu_op(id_alu_op),
+        .use_rs1(id_use_rs1),
+        .use_rs2(id_use_rs2)
     );
 
     wire [31:0] id_imm;
@@ -159,6 +173,9 @@ module cpu_core(
     wire id_ex_csr_we;
     wire [3:0] id_ex_alu_op;
     wire id_ex_is_load;
+    wire id_ex_is_store;
+    wire id_ex_use_rs1;
+    wire id_ex_use_rs2;
     pipe_id_ex u_pipe_id_ex(
         .clk(clk),
         .rst_n(rst_n),
@@ -194,6 +211,7 @@ module cpu_core(
         .id_jump(id_jump),
         .id_jump_reg(id_jump_reg),
         .id_is_load(id_is_load),
+        .id_is_store(id_is_store),
         .id_decode_trap_enter(id_decode_trap_enter),
         .id_trap_exit(id_trap_exit),
         .id_csr_we(id_csr_we),
@@ -209,11 +227,16 @@ module cpu_core(
         .id_ex_jump(id_ex_jump),
         .id_ex_jump_reg(id_ex_jump_reg),
         .id_ex_is_load(id_ex_is_load),
+        .id_ex_is_store(id_ex_is_store),
         .id_ex_decode_trap_enter(id_ex_decode_trap_enter),
         .id_ex_trap_exit(id_ex_trap_exit),
         .id_ex_csr_we(id_ex_csr_we),
         .id_alu_op(id_alu_op),
-        .id_ex_alu_op(id_ex_alu_op)
+        .id_ex_alu_op(id_ex_alu_op),
+        .id_use_rs1(id_use_rs1),
+        .id_use_rs2(id_use_rs2),
+        .id_ex_use_rs1(id_ex_use_rs1),
+        .id_ex_use_rs2(id_ex_use_rs2)
     );
     // ==================================================
 
@@ -234,36 +257,65 @@ module cpu_core(
     );
 
     //forward
+    reg [31:0] ex_store_data;
     always @(*)begin
         op1 = (id_ex_alu_src_op1 == 2'b00) ? id_ex_rs1_data :
                 (id_ex_alu_src_op1== 2'b01) ? 32'b0 :
                 id_ex_pc;
         op2 = (id_ex_alu_src_op2)? id_ex_imm : id_ex_rs2_data;
+        ex_store_data = id_ex_rs2_data;
         if(!ex_mem_is_load && ex_mem_valid && id_ex_valid && 
             (ex_mem_rd_addr == id_ex_rs1_addr) && 
             (ex_mem_rd_addr != 5'b0) && ex_mem_wr_en 
-            && (id_ex_alu_src_op1 == 2'b00))begin
+            && id_ex_use_rs1 && (id_ex_alu_src_op1 == 2'b00))begin
             // ex/mem forward
             op1 = ex_mem_alu_result;
         end else if(mem_wb_valid && id_ex_valid &&
             (mem_wb_rd_addr == id_ex_rs1_addr) && 
             (mem_wb_rd_addr != 5'b0) && mem_wb_wr_en 
-            && (id_ex_alu_src_op1 == 2'b00))begin
+            && id_ex_use_rs1 && (id_ex_alu_src_op1 == 2'b00))begin
             // mem/wb forward
             op1 = wb_wr_data;
         end
         if(!ex_mem_is_load && ex_mem_valid && id_ex_valid && 
             (ex_mem_rd_addr == id_ex_rs2_addr) && 
             (ex_mem_rd_addr != 5'b0) && ex_mem_wr_en 
-            && !id_ex_alu_src_op2)begin
+            && id_ex_use_rs2 && !id_ex_alu_src_op2)begin
             // ex/mem forward
             op2 = ex_mem_alu_result;
         end else if(mem_wb_valid && id_ex_valid &&
             (mem_wb_rd_addr == id_ex_rs2_addr) && 
             (mem_wb_rd_addr != 5'b0) && mem_wb_wr_en 
-            && !id_ex_alu_src_op2)begin
+            && id_ex_use_rs2 && !id_ex_alu_src_op2)begin
             // mem/wb forward
             op2 = wb_wr_data;
+        end
+
+        if (id_ex_valid && id_ex_is_store &&
+            ex_mem_valid && ex_mem_wr_en &&
+            !ex_mem_is_load && ex_mem_rd_addr != 5'd0 &&
+            ex_mem_rd_addr == id_ex_rs2_addr) begin
+            // EX/MEM 前递：只适用于 ALU 类结果
+            ex_store_data = ex_mem_alu_result;
+        end else if (id_ex_valid && id_ex_is_store &&
+            mem_wb_valid && mem_wb_wr_en &&
+            mem_wb_rd_addr != 5'd0 &&
+            mem_wb_rd_addr == id_ex_rs2_addr) begin
+            // MEM/WB 前递：包括 load 返回值
+            ex_store_data = wb_wr_data;
+        end
+    end
+    always @(*)begin
+        if(if_id_valid && id_ex_valid && id_ex_is_load && 
+            (((id_ex_rd_addr == id_rs1_addr) &&
+            id_use_rs1) || 
+            ((id_ex_rd_addr == id_rs2_addr) && id_use_rs2)) &&
+            (id_ex_rd_addr != 5'b0))begin
+            load_use_hazard = 1;
+            load_id_ex_flush = 1;
+        end else begin
+            load_id_ex_flush = 0;
+            load_use_hazard = 0;
         end
     end
     // ==================================================
@@ -271,6 +323,7 @@ module cpu_core(
     // ==================================================
     // EX/MEM Pipeline Register
     wire [31:0] ex_mem_alu_result;
+    wire [4:0] ex_mem_rs2_addr;
     wire ex_mem_valid;
     wire [31:0] ex_mem_pc;
     wire [31:0] ex_mem_inst;
@@ -282,6 +335,7 @@ module cpu_core(
     wire ex_mem_ram_we;
     wire [1:0] ex_mem_wb_sel;
     wire ex_mem_is_load;
+    wire ex_mem_is_store;
     pipe_ex_mem u_pipe_ex_mem(
         .clk(clk),
         .rst_n(rst_n),
@@ -294,7 +348,7 @@ module cpu_core(
         .ex_mem_pc(ex_mem_pc),
         .ex_mem_inst(ex_mem_inst),
         .id_ex_rd_addr(id_ex_rd_addr),
-        .id_ex_rs2_data(id_ex_rs2_data),
+        .ex_store_data(ex_store_data),
         .ex_mem_rd_addr(ex_mem_rd_addr),
         .ex_mem_rs2_data(ex_mem_rs2_data),
         .id_ex_wr_en(id_ex_wr_en),
@@ -302,11 +356,17 @@ module cpu_core(
         .id_ex_ram_size(id_ex_ram_size),
         .id_ex_ram_we(id_ex_ram_we),
         .id_ex_wb_sel(id_ex_wb_sel),
+        .id_ex_is_store(id_ex_is_store),
         .ex_mem_wr_en(ex_mem_wr_en),
         .ex_mem_ext_u(ex_mem_ext_u),
         .ex_mem_ram_size(ex_mem_ram_size),
         .ex_mem_ram_we(ex_mem_ram_we),
-        .ex_mem_wb_sel(ex_mem_wb_sel)
+        .ex_mem_wb_sel(ex_mem_wb_sel),
+        .ex_mem_is_store(ex_mem_is_store),
+        .id_ex_rs2_addr(id_ex_rs2_addr),
+        .ex_mem_rs2_addr(ex_mem_rs2_addr),
+        .id_ex_is_load(id_ex_is_load),
+        .ex_mem_is_load(ex_mem_is_load)
     );
     // ==================================================
 
@@ -417,12 +477,12 @@ module cpu_core(
         if(ex_mem_ram_we)begin
             case(tmp)
                 3'b000:begin
-                    mem_ram_w_data = {4{ex_mem_rs2_data[7:0]}};
+                    mem_ram_w_data = {4{mem_ram_w_data[7:0]}};
                     tmp_ram_s_we = 4'b0001 << ex_mem_alu_result[1:0];
                 end
                 3'b001:begin
                     if(ex_mem_alu_result[0] == 0)begin
-                        mem_ram_w_data = {2{ex_mem_rs2_data[15:0]}};
+                        mem_ram_w_data = {2{mem_ram_w_data[15:0]}};
                         tmp_ram_s_we = (ex_mem_alu_result[1]) ? 4'b1100 : 4'b0011;
                     end else begin
                         mem_store_misaligned = 1;

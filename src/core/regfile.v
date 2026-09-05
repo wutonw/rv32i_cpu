@@ -30,7 +30,12 @@ module regfile(
         end
     end
 
-    assign rs1_data = (rs1_addr==0)? 32'b0 : rf[rs1_addr];
-    assign rs2_data = (rs2_addr==0)? 32'b0 : rf[rs2_addr];
+    assign rs1_data =(rs1_addr == 0) ? 32'b0 :
+                    (wr_en && wr_addr != 0 && wr_addr == rs1_addr)? wr_data :
+                    rf[rs1_addr];
+
+    assign rs2_data =(rs2_addr == 0) ? 32'b0 :
+                    (wr_en && wr_addr != 0 && wr_addr == rs2_addr)? wr_data :
+                    rf[rs2_addr];
 
 endmodule

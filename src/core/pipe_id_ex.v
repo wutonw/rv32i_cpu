@@ -36,6 +36,7 @@ module pipe_id_ex(
     input wire id_jump,
     input wire id_jump_reg,
     input wire id_is_load,
+    input wire id_is_store,
     input wire id_decode_trap_enter,
     input wire id_trap_exit,
     input wire id_csr_we,
@@ -51,12 +52,18 @@ module pipe_id_ex(
     output reg id_ex_jump,
     output reg id_ex_jump_reg,
     output reg id_ex_is_load,
+    output reg id_ex_is_store,
     output reg id_ex_decode_trap_enter,
     output reg id_ex_trap_exit,
     output reg id_ex_csr_we,
 
     input wire [3:0] id_alu_op,
-    output reg [3:0] id_ex_alu_op
+    output reg [3:0] id_ex_alu_op,
+
+    input wire id_use_rs1,
+    input wire id_use_rs2,
+    output reg id_ex_use_rs1,
+    output reg id_ex_use_rs2
 );
     always @(posedge clk or negedge rst_n)begin
         if(!rst_n)begin
@@ -73,10 +80,13 @@ module pipe_id_ex(
             id_ex_jump <= 1'b0;
             id_ex_jump_reg <= 1'b0;
             id_ex_is_load <= 1'b0;
+            id_ex_is_store <= 1'b0;
             id_ex_csr_we <= 1'b0;
             id_ex_decode_trap_enter <= 1'b0;
             id_ex_trap_exit <= 1'b0;
             id_ex_alu_op <= 4'b0;
+            id_ex_use_rs1 <= 0;
+            id_ex_use_rs2 <= 0;
         end else if (id_ex_flush)begin
             id_ex_valid <= 1'b0;
             id_ex_wr_en <= 1'b0;
@@ -91,10 +101,13 @@ module pipe_id_ex(
             id_ex_jump <= 1'b0;
             id_ex_is_load <= 1'b0;
             id_ex_jump_reg <= 1'b0;
+            id_ex_is_store <= 1'b0;
             id_ex_csr_we <= 1'b0;
             id_ex_decode_trap_enter <= 1'b0;
             id_ex_trap_exit <= 1'b0;
             id_ex_alu_op <= 4'b0;
+            id_ex_use_rs1 <= 0;
+            id_ex_use_rs2 <= 0;
         end else if(!stall)begin
             id_ex_valid <= if_id_valid;
             id_ex_pc <= if_id_pc;
@@ -117,10 +130,13 @@ module pipe_id_ex(
             id_ex_jump <= id_jump;
             id_ex_jump_reg <= id_jump_reg;
             id_ex_is_load <= id_is_load;
+            id_ex_is_store <= id_is_store;
             id_ex_decode_trap_enter <= id_decode_trap_enter;
             id_ex_trap_exit <= id_trap_exit;
             id_ex_csr_we <= id_csr_we;
             id_ex_alu_op <= id_alu_op;
+            id_ex_use_rs1 <= id_use_rs1;
+            id_ex_use_rs2 <= id_use_rs2;
         end
     end
 endmodule
